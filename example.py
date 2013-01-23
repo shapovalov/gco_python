@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
-from pygco import cut_simple, cut_from_graph
+from pygco import cut_simple, cut_simple_gen_potts, cut_from_graph, cut_from_graph_gen_potts
 
 
 def example_binary():
@@ -16,9 +16,15 @@ def example_binary():
     unaries = (10 * np.dstack([unaries, -unaries]).copy("C")).astype(np.int32)
     # create potts pairwise
     pairwise = -10 * np.eye(2, dtype=np.int32)
-
+    
     # do simple cut
     result = cut_simple(unaries, pairwise)
+    
+    # generalized Potts potentials
+    pix_nums = np.r_[:10*10].reshape(10,10)
+    pairwise_cost = dict([(tuple(sorted(pair)), 30) for pair in zip(pix_nums[:,:-1].flatten(), pix_nums[:,1:].flatten())] +
+                         [(tuple(sorted(pair)),0) for pair in zip(pix_nums[:-1,:].flatten(), pix_nums[1:,:].flatten())])
+    result_gp = cut_simple_gen_potts(unaries, pairwise_cost)
 
     # use the gerneral graph algorithm
     # first, we construct the grid graph
@@ -29,6 +35,9 @@ def example_binary():
 
     # we flatten the unaries
     result_graph = cut_from_graph(edges, unaries.reshape(-1, 2), pairwise)
+    
+    # generalized Potts potentials
+    result_graph_gp = cut_from_graph_gen_potts(unaries.reshape(-1, 2), pairwise_cost)
 
     # plot results
     plt.subplot(231, title="original")
