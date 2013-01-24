@@ -44,7 +44,7 @@ cdef extern from "GCoptimization.h":
         void setDataCost(NRG_TYPE *)
         void setSmoothCost(NRG_TYPE *)
         void setNeighbors(int, int)
-        void setNeighbors(int, int, int)
+        void setNeighbors(int, int, NRG_TYPE)
         void expansion(int n_iterations)
         void swap(int n_iterations)
         void setSmoothCostFunctor(GCoptimizationGridGraph.SmoothCostFunctor* f) # yep, it works
@@ -243,7 +243,7 @@ def cut_simple_vh(np.ndarray[NRG_DTYPE_t, ndim=3, mode='c'] unary_cost,
 def cut_from_graph(np.ndarray[np.int32_t, ndim=2, mode='c'] edges,
         np.ndarray[NRG_DTYPE_t, ndim=2, mode='c'] unary_cost,
         np.ndarray[NRG_DTYPE_t, ndim=2, mode='c'] pairwise_cost, n_iter=5,
-        algorithm='expansion'):
+        algorithm='expansion', np.ndarray[NRG_DTYPE_t, ndim=1, mode='c'] weights=None):
     """
     Apply multi-label graphcuts to arbitrary graph given by `edges`.
 
@@ -272,15 +272,26 @@ def cut_from_graph(np.ndarray[np.int32_t, ndim=2, mode='c'] edges,
                 pairwise_cost.shape[0], pairwise_cost.shape[1]))
     if pairwise_cost.shape[1] != pairwise_cost.shape[0]:
         raise ValueError("pairwise_cost must be a square matrix.")
+    if weights is not None and edges.shape[1] == 3:    
+        raise ValueError("weights parameter is ambiguous when edges is a 3-column array.")
+    if weights is not None and weights.shape[0] != edges.shape[0]:
+        raise ValueError("weights vector should contain one weight per edge.")
+        
     cdef int n_vertices = unary_cost.shape[0]
     cdef int n_labels = pairwise_cost.shape[0]
 
     cdef GCoptimizationGeneralGraph* gc = new GCoptimizationGeneralGraph(n_vertices, n_labels)
-    for e in edges:
-        if e.shape[0] == 3:
-            gc.setNeighbors(e[0], e[1], e[2])
-        else:
-            gc.setNeighbors(e[0], e[1])
+    
+    if weights is None:
+        for e in edges:
+            if e.shape[1] == 3:
+                gc.setNeighbors(e[0], e[1], e[2])
+            else:
+                gc.setNeighbors(e[0], e[1])
+    else:
+        for e,w in zip(edges, weights):
+            gc.setNeighbors(e[0], e[1], w)
+                
     gc.setDataCost(<NRG_TYPE*>unary_cost.data)
     gc.setSmoothCost(<NRG_TYPE*>pairwise_cost.data)
     if algorithm == 'swap':
