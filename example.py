@@ -87,6 +87,5 @@ def example_multinomial():
     plt.imshow(result_1d, interpolation="nearest")
     plt.show()
 
-
 example_binary()
 example_multinomial()
