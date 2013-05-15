@@ -8,7 +8,8 @@ from libcpp.pair cimport pair
 
 DEF DEBUG_CHECKS = True   # true if laborious parameter checks are needed 
 
-# This is the energy type; should match the EnergyType and EnergyTermType in GCOptimization.h 
+# This is the energy type; should match the EnergyType and
+# EnergyTermType in GCOptimization.h
 DEF NRG_TYPE_STR = int
 
 IF NRG_TYPE_STR == int:
@@ -293,7 +294,7 @@ def cut_from_graph(np.ndarray[np.int32_t, ndim=2, mode='c'] edges,
     
     if weights is None:
         for e in edges:
-            if e.shape[1] == 3:
+            if len(e) == 3:
                 gc.setNeighbors(e[0], e[1], e[2])
             else:
                 gc.setNeighbors(e[0], e[1])
