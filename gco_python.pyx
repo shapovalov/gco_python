@@ -37,6 +37,10 @@ cdef extern from "GCoptimization.h":
         void setSmoothCostVH(NRG_TYPE* pairwise, NRG_TYPE* V, NRG_TYPE* H)
         void setSmoothCostFunctor(SmoothCostFunctor* f)
         int whatLabel(int node)
+        void setLabel(int node, int label)
+        NRG_TYPE compute_energy()
+        
+
 		
         
 
@@ -50,6 +54,8 @@ cdef extern from "GCoptimization.h":
         NRG_TYPE swap(int n_iterations)
         void setSmoothCostFunctor(GCoptimizationGridGraph.SmoothCostFunctor* f) # yep, it works
         int whatLabel(int node)
+        void setLabel(int node, int label)
+        NRG_TYPE compute_energy()
         
         
 cdef cppclass PottsFunctor(GCoptimizationGridGraph.SmoothCostFunctor):
@@ -125,8 +131,10 @@ def cut_simple(np.ndarray[NRG_DTYPE_t, ndim=3, mode='c'] unary_cost,
     cdef int * result_ptr = <int*>result.data
     for i in xrange(w * h):
         result_ptr[i] = gc.whatLabel(i)
-        
+
+
     del gc
+
     return result, nrg
     
     
@@ -181,7 +189,8 @@ def cut_simple_gen_potts(np.ndarray[NRG_DTYPE_t, ndim=3, mode='c'] unary_cost,
     cdef int * result_ptr = <int*>result.data
     for i in xrange(w * h):
         result_ptr[i] = gc.whatLabel(i)
-        
+
+
     del gc
     return result, nrg
     
@@ -248,6 +257,62 @@ def cut_simple_vh(np.ndarray[NRG_DTYPE_t, ndim=3, mode='c'] unary_cost,
         
     del gc
     return result, nrg
+
+def energy_of_graph_assignment(np.ndarray[np.int32_t, ndim=2, mode='c'] edges,
+        np.ndarray[NRG_DTYPE_t, ndim=2, mode='c'] unary_cost,
+        np.ndarray[NRG_DTYPE_t, ndim=2, mode='c'] pairwise_cost,
+        np.ndarray[np.int32_t, ndim=1, mode='c'] assignment) :
+    """
+    Calculate the energy of a particular assignment of labels to a graph
+
+    Parameters
+    ----------
+    edges: ndarray, int32, shape(n_edges, 2 or 3)
+        Rows correspond to edges in graph, given as vertex indices.
+        if edges is n_edges x 3 then third parameter is used as edge weight
+    unary_cost: ndarray, int32, shape=(n_vertices, n_labels)
+        Unary potentials
+    pairwise_cost: ndarray, int32, shape=(n_labels, n_labels)
+        Pairwise potentials for label compatibility
+    assigment : ndarray, int32, shape= (n_vertices,)
+        Assignments of labels to nodes 
+    """
+    
+    if (pairwise_cost != pairwise_cost.T).any():
+        raise ValueError("pairwise_cost must be symmetric.")
+
+    if unary_cost.shape[1] != pairwise_cost.shape[0]:
+        raise ValueError("unary_cost and pairwise_cost have incompatible shapes.\n"
+            "unary_cost must be height x width x n_labels, pairwise_cost must be n_labels x n_labels.\n"
+            "Got: unary_cost: (%d, %d), pairwise_cost: (%d, %d)"
+            %(unary_cost.shape[0], unary_cost.shape[1],
+                pairwise_cost.shape[0], pairwise_cost.shape[1]))
+    if pairwise_cost.shape[1] != pairwise_cost.shape[0]:
+        raise ValueError("pairwise_cost must be a square matrix.")
+        
+    cdef int n_vertices = unary_cost.shape[0]
+    cdef int n_labels = pairwise_cost.shape[0]
+
+    cdef GCoptimizationGeneralGraph* gc = new GCoptimizationGeneralGraph(n_vertices, n_labels)
+
+    for e in edges:
+        if len(e) == 3:
+            gc.setNeighbors(e[0], e[1], e[2])
+        else:
+            gc.setNeighbors(e[0], e[1])
+                
+    gc.setDataCost(<NRG_TYPE*>unary_cost.data)
+    gc.setSmoothCost(<NRG_TYPE*>pairwise_cost.data)
+
+    for i in xrange(n_vertices):
+        gc.setLabel(i, assignment[i])
+
+
+    nrg = gc.compute_energy()
+
+    return nrg
+
+    
 
 
 def cut_from_graph(np.ndarray[np.int32_t, ndim=2, mode='c'] edges,
@@ -318,7 +383,7 @@ def cut_from_graph(np.ndarray[np.int32_t, ndim=2, mode='c'] edges,
     cdef int * result_ptr = <int*>result.data
     for i in xrange(n_vertices):
         result_ptr[i] = gc.whatLabel(i)
-        
+
     del gc
     return result, nrg
 
