@@ -12,6 +12,7 @@ cdef extern from "GCoptimization.h":
         void swap(int n_iterations)
         void setSmoothCostVH(int* pairwise, int* V, int* H)
         int whatLabel(int node)
+        void setLabelCost(int *)
 
     cdef cppclass GCoptimizationGeneralGraph:
         GCoptimizationGeneralGraph(int n_vertices, int n_labels)
@@ -22,6 +23,7 @@ cdef extern from "GCoptimization.h":
         void expansion(int n_iterations)
         void swap(int n_iterations)
         int whatLabel(int node)
+        void setLabelCost(int *)
 
 
 def cut_simple(np.ndarray[np.int32_t, ndim=3, mode='c'] unary_cost,
@@ -138,7 +140,8 @@ def cut_simple_vh(np.ndarray[np.int32_t, ndim=3, mode='c'] unary_cost,
 
 def cut_from_graph(np.ndarray[np.int32_t, ndim=2, mode='c'] edges,
         np.ndarray[np.int32_t, ndim=2, mode='c'] unary_cost,
-        np.ndarray[np.int32_t, ndim=2, mode='c'] pairwise_cost, n_iter=5,
+        np.ndarray[np.int32_t, ndim=2, mode='c'] pairwise_cost,
+        np.ndarray[np.int32_t, ndim=1, mode='c'] label_cost=None, n_iter=5,
         algorithm='expansion'):
     """
     Apply multi-label graphcuts to arbitrary graph given by `edges`.
@@ -152,6 +155,8 @@ def cut_from_graph(np.ndarray[np.int32_t, ndim=2, mode='c'] edges,
         Unary potentials
     pairwise_cost: ndarray, int32, shape=(n_labels, n_labels)
         Pairwise potentials for label compatibility
+    label_cost: ndarray, int32, shape=(n_labels)
+        Label costs       
     n_iter: int, (default=5)
         Number of iterations
     algorithm: string, `expansion` or `swap`, default=expansion
@@ -168,6 +173,8 @@ def cut_from_graph(np.ndarray[np.int32_t, ndim=2, mode='c'] edges,
                 pairwise_cost.shape[0], pairwise_cost.shape[1]))
     if pairwise_cost.shape[1] != pairwise_cost.shape[0]:
         raise ValueError("pairwise_cost must be a square matrix.")
+    if label_cost and (label_cost.shape[0] != pairwise_cost.shape[0]):
+        raise ValueError("label_cost must be an array of size n_labels.\n")
     cdef int n_vertices = unary_cost.shape[0]
     cdef int n_labels = pairwise_cost.shape[0]
 
@@ -179,6 +186,8 @@ def cut_from_graph(np.ndarray[np.int32_t, ndim=2, mode='c'] edges,
             gc.setNeighbors(e[0], e[1])
     gc.setDataCost(<int*>unary_cost.data)
     gc.setSmoothCost(<int*>pairwise_cost.data)
+    if label_cost:
+        gc.setLabelCost(<int*>label_cost.data)
     if algorithm == 'swap':
         gc.swap(n_iter)
     elif algorithm == 'expansion':
