@@ -315,9 +315,9 @@ def energy_of_graph_assignment(np.ndarray[np.int32_t, ndim=2, mode='c'] edges,
 
 def cut_from_graph(np.ndarray[np.int32_t, ndim=2, mode='c'] edges,
         np.ndarray[NRG_DTYPE_t, ndim=2, mode='c'] unary_cost,
-        np.ndarray[NRG_DTYPE_t, ndim=2, mode='c'] pairwise_cost,
-        np.ndarray[np.int32_t, ndim=1, mode='c'] label_cost=None, n_iter=5,
-        algorithm='expansion', np.ndarray[NRG_DTYPE_t, ndim=1, mode='c'] weights=None):
+        np.ndarray[NRG_DTYPE_t, ndim=2, mode='c'] pairwise_cost, n_iter=5,
+        algorithm='expansion', np.ndarray[NRG_DTYPE_t, ndim=1, mode='c'] weights=None,
+        np.ndarray[np.int32_t, ndim=1, mode='c'] label_cost=None):
     """
     Apply multi-label graphcuts to arbitrary graph given by `edges`.
 
@@ -403,7 +403,8 @@ def cut_from_graph(np.ndarray[np.int32_t, ndim=2, mode='c'] edges,
 def cut_from_graph_gen_potts(
         np.ndarray[NRG_DTYPE_t, ndim=2, mode='c'] unary_cost,
         object pairwise_cost, n_iter=5,
-        algorithm='expansion'):
+        algorithm='expansion',
+        np.ndarray[np.int32_t, ndim=1, mode='c'] label_cost=None):
     """
     Apply multi-label graphcuts to arbitrary graph given by `edges`.
 
@@ -422,6 +423,9 @@ def cut_from_graph_gen_potts(
     cdef int n_vertices = unary_cost.shape[0]
     cdef int n_labels = unary_cost.shape[1]
 
+    if label_cost is not None and (label_cost.shape[0] != n_labels):
+        raise ValueError("label_cost must be an array of size n_labels.\n")
+
     cdef GCoptimizationGeneralGraph* gc = new GCoptimizationGeneralGraph(n_vertices, n_labels)
     for edge, strength in pairwise_cost.items():
         gc.setNeighbors(edge[0], edge[1])
@@ -430,6 +434,9 @@ def cut_from_graph_gen_potts(
         if strength < 0:
             raise ValueError("Pairwise potential for the edge (%d,%d) is negative, "
                              "which is not allowed in generalized Potts" % edge)
+
+    if label_cost is not None:
+        gc.setLabelCost(<int*>label_cost.data)
         
     gc.setDataCost(<NRG_TYPE*>unary_cost.data)
     gc.setSmoothCostFunctor(<GeneralizedPottsFunctor*>new GeneralizedPottsFunctor(pairwise_cost))
