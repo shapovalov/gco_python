@@ -173,7 +173,7 @@ def cut_from_graph(np.ndarray[np.int32_t, ndim=2, mode='c'] edges,
                 pairwise_cost.shape[0], pairwise_cost.shape[1]))
     if pairwise_cost.shape[1] != pairwise_cost.shape[0]:
         raise ValueError("pairwise_cost must be a square matrix.")
-    if label_cost and (label_cost.shape[0] != pairwise_cost.shape[0]):
+    if label_cost is not None and (label_cost.shape[0] != pairwise_cost.shape[0]):
         raise ValueError("label_cost must be an array of size n_labels.\n")
     cdef int n_vertices = unary_cost.shape[0]
     cdef int n_labels = pairwise_cost.shape[0]
@@ -186,7 +186,7 @@ def cut_from_graph(np.ndarray[np.int32_t, ndim=2, mode='c'] edges,
             gc.setNeighbors(e[0], e[1])
     gc.setDataCost(<int*>unary_cost.data)
     gc.setSmoothCost(<int*>pairwise_cost.data)
-    if label_cost:
+    if label_cost is not None:
         gc.setLabelCost(<int*>label_cost.data)
     if algorithm == 'swap':
         gc.swap(n_iter)
