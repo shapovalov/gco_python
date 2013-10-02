@@ -439,7 +439,8 @@ def cut_from_graph_gen_potts(
         gc.setLabelCost(<int*>label_cost.data)
         
     gc.setDataCost(<NRG_TYPE*>unary_cost.data)
-    gc.setSmoothCostFunctor(<GeneralizedPottsFunctor*>new GeneralizedPottsFunctor(pairwise_cost))
+    cdef GeneralizedPottsFunctor* functor = new GeneralizedPottsFunctor(pairwise_cost)
+    gc.setSmoothCostFunctor(functor)
     cdef NRG_TYPE nrg
     if algorithm == 'swap':
         nrg = gc.swap(n_iter)
@@ -456,4 +457,5 @@ def cut_from_graph_gen_potts(
         result_ptr[i] = gc.whatLabel(i)
         
     del gc
+    del functor
     return result, nrg
