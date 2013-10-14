@@ -171,7 +171,8 @@ def cut_simple_gen_potts(np.ndarray[NRG_DTYPE_t, ndim=3, mode='c'] unary_cost,
 
     cdef GCoptimizationGridGraph* gc = new GCoptimizationGridGraph(h, w, n_labels)
     gc.setDataCost(<NRG_TYPE*>unary_cost.data)
-    gc.setSmoothCostFunctor(<GeneralizedPottsFunctor*>new GeneralizedPottsFunctor(pairwise_cost))
+    cdef GeneralizedPottsFunctor* functor = new GeneralizedPottsFunctor(pairwise_cost)
+    gc.setSmoothCostFunctor(functor)
     cdef NRG_TYPE nrg
     if algorithm == 'swap':
         nrg = gc.swap(n_iter)
@@ -190,6 +191,7 @@ def cut_simple_gen_potts(np.ndarray[NRG_DTYPE_t, ndim=3, mode='c'] unary_cost,
 
 
     del gc
+    del functor
     return result, nrg
     
 
