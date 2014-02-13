@@ -27,13 +27,13 @@ np.import_array()
 cdef extern from "GCoptimization.h":
     cdef cppclass GCoptimizationGridGraph:
         cppclass SmoothCostFunctor:
-            NRG_TYPE compute(int s1, int s2, int l1, int l2)
-			
+            NRG_TYPE compute(int s1, int s2, int l1, int l2) nogil
+            
         GCoptimizationGridGraph(int width, int height, int n_labels)
         void setDataCost(NRG_TYPE *)
         void setSmoothCost(NRG_TYPE *)
-        NRG_TYPE expansion(int n_iterations)
-        NRG_TYPE swap(int n_iterations)
+        NRG_TYPE expansion(int n_iterations) nogil
+        NRG_TYPE swap(int n_iterations) nogil
         void setSmoothCostVH(NRG_TYPE* pairwise, NRG_TYPE* V, NRG_TYPE* H)
         void setSmoothCostFunctor(SmoothCostFunctor* f)
         int whatLabel(int node)
@@ -47,8 +47,8 @@ cdef extern from "GCoptimization.h":
         void setSmoothCost(NRG_TYPE *)
         void setNeighbors(int, int)
         void setNeighbors(int, int, NRG_TYPE)
-        NRG_TYPE expansion(int n_iterations)
-        NRG_TYPE swap(int n_iterations)
+        NRG_TYPE expansion(int n_iterations) nogil
+        NRG_TYPE swap(int n_iterations) nogil
         void setSmoothCostFunctor(GCoptimizationGridGraph.SmoothCostFunctor* f) # yep, it works
         int whatLabel(int node)
         void setLabelCost(int *)
@@ -62,7 +62,7 @@ cdef cppclass PottsFunctor(GCoptimizationGridGraph.SmoothCostFunctor):
     __init__(NRG_TYPE strength):
         this.strength_ = strength
     
-    NRG_TYPE compute(int s1, int s2, int l1, int l2):
+    NRG_TYPE compute(int s1, int s2, int l1, int l2) nogil:
         return -this.strength_ if l1 == l2 else 0
         
 cdef cppclass GeneralizedPottsFunctor(GCoptimizationGridGraph.SmoothCostFunctor):
@@ -71,12 +71,14 @@ cdef cppclass GeneralizedPottsFunctor(GCoptimizationGridGraph.SmoothCostFunctor)
     __init__(object data):
         this.data_ = data
     
-    NRG_TYPE compute(int s1, int s2, int l1, int l2):
+    NRG_TYPE compute(int s1, int s2, int l1, int l2) nogil:
+        cdef pair[int,int] p
         if l1 != l2: 
             return 0
         else:
-            pair = tuple(sorted([s1,s2]))
-            return -this.data_[pair]  
+            p.first = s1 if s1 <= s2 else s2
+            p.second = s2 if s1 <= s2 else s1
+            return -this.data_[p]  
 
 
 def cut_simple(np.ndarray[NRG_DTYPE_t, ndim=3, mode='c'] unary_cost,
@@ -115,10 +117,13 @@ def cut_simple(np.ndarray[NRG_DTYPE_t, ndim=3, mode='c'] unary_cost,
     gc.setDataCost(<NRG_TYPE*>unary_cost.data)
     gc.setSmoothCost(<NRG_TYPE*>pairwise_cost.data)
     cdef NRG_TYPE nrg
+    cdef int cn_iter = n_iter
     if algorithm == 'swap':
-        nrg = gc.swap(n_iter)
+        with nogil:
+            nrg = gc.swap(cn_iter)
     elif algorithm == 'expansion':
-        nrg = gc.expansion(n_iter)
+        with nogil:
+            nrg = gc.expansion(cn_iter)
     else:
         raise ValueError("algorithm should be either `swap` or `expansion`. Got: %s" % algorithm)
 
@@ -174,10 +179,13 @@ def cut_simple_gen_potts(np.ndarray[NRG_DTYPE_t, ndim=3, mode='c'] unary_cost,
     cdef GeneralizedPottsFunctor* functor = new GeneralizedPottsFunctor(pairwise_cost)
     gc.setSmoothCostFunctor(functor)
     cdef NRG_TYPE nrg
+    cdef int cn_iter = n_iter
     if algorithm == 'swap':
-        nrg = gc.swap(n_iter)
+        with nogil:
+            nrg = gc.swap(cn_iter)
     elif algorithm == 'expansion':
-        nrg = gc.expansion(n_iter)
+        with nogil:
+            nrg = gc.expansion(cn_iter)
     else:
         raise ValueError("algorithm should be either `swap` or `expansion`. Got: %s" % algorithm)
 
@@ -240,10 +248,13 @@ def cut_simple_vh(np.ndarray[NRG_DTYPE_t, ndim=3, mode='c'] unary_cost,
     gc.setDataCost(<NRG_TYPE*>unary_cost.data)
     gc.setSmoothCostVH(<NRG_TYPE*>pairwise_cost.data, <NRG_TYPE*>costV.data, <NRG_TYPE*>costH.data)
     cdef NRG_TYPE nrg
+    cdef int cn_iter = n_iter
     if algorithm == 'swap':
-        nrg = gc.swap(n_iter)
+        with nogil:
+            nrg = gc.swap(cn_iter)
     elif algorithm == 'expansion':
-        nrg = gc.expansion(n_iter)
+        with nogil:
+            nrg = gc.expansion(cn_iter)
     else:
         raise ValueError("algorithm should be either `swap` or `expansion`. Got: %s" % algorithm)
 
@@ -384,10 +395,13 @@ def cut_from_graph(np.ndarray[np.int32_t, ndim=2, mode='c'] edges,
     gc.setDataCost(<NRG_TYPE*>unary_cost.data)
     gc.setSmoothCost(<NRG_TYPE*>pairwise_cost.data)
     cdef NRG_TYPE nrg
+    cdef int cn_iter = n_iter
     if algorithm == 'swap':
-        nrg = gc.swap(n_iter)
+        with nogil:
+            nrg = gc.swap(cn_iter)
     elif algorithm == 'expansion':
-        nrg = gc.expansion(n_iter)
+        with nogil:
+            nrg = gc.expansion(cn_iter)
     else:
         raise ValueError("algorithm should be either `swap` or `expansion`. Got: %s" % algorithm)
 
@@ -444,10 +458,13 @@ def cut_from_graph_gen_potts(
     cdef GeneralizedPottsFunctor* functor = new GeneralizedPottsFunctor(pairwise_cost)
     gc.setSmoothCostFunctor(functor)
     cdef NRG_TYPE nrg
+    cdef int cn_iter = n_iter
     if algorithm == 'swap':
-        nrg = gc.swap(n_iter)
+        with nogil:
+            nrg = gc.swap(cn_iter)
     elif algorithm == 'expansion':
-        nrg = gc.expansion(n_iter)
+        with nogil:
+            nrg = gc.expansion(cn_iter)
     else:
         raise ValueError("algorithm should be either `swap` or `expansion`. Got: %s" % algorithm)
 
